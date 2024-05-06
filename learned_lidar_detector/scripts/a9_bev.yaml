@@ -1,0 +1,7 @@
+path: /home/adrian/dev/A9_images_and_points/bev_lidar/
+train: ./images/train
+val: ./images/val
+test: ./images/test
+
+nc: 10
+names: ["BICYCLE", "BUS", "CAR", "EMERGENCY_VEHICLE", "MOTORCYCLE", "PEDESTRIAN", "TRAILER", "TRUCK", "VAN", "OTHER"]

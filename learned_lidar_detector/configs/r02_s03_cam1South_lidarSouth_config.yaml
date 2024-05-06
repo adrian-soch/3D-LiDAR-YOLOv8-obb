@@ -1,0 +1,10 @@
+# Shared parameters for multiple nodes
+/**:
+  ros__parameters:
+    # Transformation from sensor to world frame
+    lidar2world_transform:
+      # [x,y,z] in meters
+      translation: [0.0, 0.0, 8.6]
+
+      # [w,x,y,z] normalized quaternion
+      quaternion: [0.9998316, 0.0056714, 0.0174521, 0.000099]
