@@ -56,9 +56,9 @@ class ObjectTracker(Node):
             'isOBB', True).get_parameter_value().bool_value
 
         if self.isOBB:
-            from .sort import sort_rotated_bbox as s
+            from . import sort_rotated_bbox as s
         else:
-            from .sort import sort as s
+            raise NotImplementedError
 
         # create instance of SORT
         self.tracker = s.Sort(
