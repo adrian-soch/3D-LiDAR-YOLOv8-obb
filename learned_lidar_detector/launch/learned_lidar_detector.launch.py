@@ -4,7 +4,7 @@ from launch_ros.actions import Node
 from launch import LaunchDescription
 
 share_dir = get_package_share_directory('learned_lidar_detector')
-model_path = os.path.join(share_dir, 'yolov8n-obb_range.engine')
+model_path = os.path.join(share_dir, 'yolov8n-obb_range.pt')
 
 rviz_config_file = os.path.join(share_dir, 'rviz.rviz')
 
