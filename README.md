@@ -3,13 +3,24 @@
 
 ## TODO
 - [ ] Add example ROS bag
-- [ ] Add citations
 - [ ] Add documentation
 - [ ] Add gif/image
+- [ ] Create branch for Ubuntu 22/ROS2 Humble
 
 ## Usage
 
-Clone this repo to your ROS 2 workspace. Build and run the nodes, see the example launch file for details.
+1. Install ROS 2 Galactic (for Ubuntu 20.04)
+2. Clone this repo to your ROS 2 workspace
+3. Clone https://github.com/adrian-soch/ros2_numpy to your ROS 2 workspace
+4. Build and run the nodes, see the example launch file for details.
+
+### Exporting model to TensorRT (Spped up inference for Nvidia)
+
+Assuming the `ultralytics` package is installed, run this command with the PyTorch weights to compile an `.engine` file for faster inference speeds on Nvidia GPUs.
+
+```
+yolo export model=yolo8n-obb_range.pt format=engine imgsz=1024 half=True simplify=True
+```
 
 ## References
 - [1]
