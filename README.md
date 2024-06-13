@@ -2,7 +2,7 @@
 3D LiDAR Object Detection using YOLOv8-obb (oriented bounding box). The pre-trained weights were trained on the A9-Intersection dataset [1]. The YOLOv8-obb [2] model is used to predict bounding boxes and class in a Bird'e-Eye-View image created from a LiDAR point cloud [3]. A separate ROS node for tracking the detections is provided, it is based on SORT [4], and uses rotated bounding boxes.
 
 ## TODO
-- [ ] Add example ROS bag
+- [x] Add example ROS bag
 - [ ] Add documentation
 - [ ] Add gif/image
 - [ ] Create branch for Ubuntu 22/ROS2 Humble
@@ -13,6 +13,10 @@
 2. Clone this repo to your ROS 2 workspace
 3. Clone https://github.com/adrian-soch/ros2_numpy to your ROS 2 workspace
 4. Build and run the nodes, see the example launch file for details.
+
+## Example Dataset
+
+Download a sample rosbag here: https://drive.google.com/drive/folders/1rVnvbeyFYvG2HnFULadnT8nWH69EnOCm?usp=sharing.
 
 ### Exporting model to TensorRT (Spped up inference for Nvidia)
 
