@@ -1,19 +1,9 @@
 '''
-This script converts the A9 data into BEV psuedo images
-based on the config file values
+This script converts the KITTI data into BEV psuedo images
+and YOLO-OBB training labels based on the config file
 '''
-
+# fmt: off
 # limit the number of cpus used by high performance libraries
-from lidar_2_bev import radius_outlier_removal, transform_pc, array_to_image, euler_from_quaternion
-from configs import kitti_config as cfg
-import random
-from typing import List
-import time
-import numpy as np
-import open3d as o3d
-import json
-from glob import glob
-import cv2
 import argparse
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -22,9 +12,19 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
+from lidar_2_bev import transform_pc, array_to_image
+from configs import kitti_config as cfg
+import random
+import time
+import numpy as np
+import open3d as o3d
+from glob import glob
+import cv2
+# fmt: off
+
 
 class LidarBevCreator():
-    def __init__(self, lidar_path: str, image_path: str, label_path: str, useIntensity=False):
+    def __init__(self, lidar_path: str, image_path: str, label_path: str, useIntensity=True):
         """Create bird's-eye-view (BEV) psuedo images from LiDAR point clouds
 
         Args:
@@ -96,6 +96,48 @@ class LidarBevCreator():
         for idx in range(len(self.lidar_list)):
             self.get_bev_and_label(idx=idx, visualize=True, debug=debug)
 
+    def label_3d_on_image(self):
+        for idx in range(len(self.lidar_list)):
+            pc_path = self.lidar_list[idx]
+
+            # Get detection points in the image plane
+            _, tail = os.path.split(pc_path)
+            name, _ = os.path.splitext(tail)
+            gt_path = os.path.join(self.label_path, name + '.txt')
+            det_list = get_gt(gt_path, convertToLidar=False)
+            points = self.get_image_points(det_list)
+
+            img_path = os.path.join(self.image_path, name + '.png')
+
+            # for obj in points:
+            #     colour = cfg.colours[int(obj[0])]
+            #     image = draw_r_bbox(obj[1:], image, colour)
+
+            #     corners_int = np.array(corners).astype(int)
+
+            #     img = cv2.line(img, (corners_int[0], corners_int[1]),
+            #                 (corners_int[2], corners_int[3]), colour, 1)
+            #     img = cv2.line(img, (corners_int[2], corners_int[3]),
+            #                 (corners_int[4], corners_int[5]), colour, 1)
+            #     img = cv2.line(img, (corners_int[4], corners_int[5]),
+            #                 (corners_int[6], corners_int[7]), colour, 1)
+            #     img = cv2.line(img, (corners_int[6], corners_int[7]),
+            #                 (corners_int[0], corners_int[1]), colour, 1)
+
+            #     cv2.imshow('Numpy Array as Image', image)
+            #     if user_input_handler() < 0:
+            #         exit(0)
+
+
+    def get_image_points(self, bboxes):
+        dets = []
+        for bbox in bboxes:
+            cam_points = self.__bbox3d_to_corners(bbox[1:], is3D=True)
+            image_points = transform_pc(np.array(cam_points), cfg.P2).tolist()[0],
+            dets.append({'class': bbox[0], 'points':image_points})
+        return dets
+
+
     def get_bev_and_label(self, idx: int, lidar_frame_path=None, visualize=False, debug=False):
         pc_path = lidar_frame_path
         if lidar_frame_path is None:
@@ -163,7 +205,7 @@ class LidarBevCreator():
         return None if len(out) == 0 else out
 
     @staticmethod
-    def __bbox3d_to_corners(bbox_bev):
+    def __bbox3d_to_corners(bbox_bev, is3D=False):
         '''
         Convert a9 label cuboid format to 4 BEV ground plane corners
         '''
@@ -187,11 +229,23 @@ class LidarBevCreator():
         x4 = (l/2 * cos_yaw + w/2 * sin_yaw) + x
         y4 = (l/2 * sin_yaw - w/2 * cos_yaw) + y
 
-        return [x1, y1, x2, y2, x3, y3, x4, y4]
+        if not is3D:
+            return [x1, y1, x2, y2, x3, y3, x4, y4]
+        else:
+            return [[x1, y1, 0.0],
+                    [x2, y2, 0.0],
+                    [x3, y3, 0.0],
+                    [x4, y4, 0.0],
+                    [x1, y1, h],
+                    [x2, y2, h],
+                    [x3, y3, h],
+                    [x4, y4, h]]
 
     def __convert_labels(self, bboxes):
         '''
         Convert Label data into the psuedo image pixel space
+
+        object_label = [cat_id, x, y, z, h, w, l, ry]
         '''
         labels = []
         for bbox in bboxes:
@@ -208,9 +262,8 @@ class LidarBevCreator():
             bbox = bbox[0], x1, y1, z1, h1, w1, l1, yaw
             bbox = [bbox[0]] + self.__bbox3d_to_corners(bbox[1:])
             labels.append(bbox)
-            # object_label = [cat_id, x, y, z, h, w, l, ry]
         return labels
-    
+
     def get_pc(self, lidar_file):
         return np.fromfile(lidar_file, dtype=np.float32).reshape(-1, 4)
 
@@ -239,7 +292,7 @@ class LidarBevCreator():
             pointCloud[:, 2] > cfg.boundary['maxZ']))]
 
         # Apply radius removal
-        pointCloud = radius_outlier_removal(pointCloud, num_points=12, r=0.8)
+        # pointCloud = radius_outlier_removal(pointCloud, num_points=12, r=0.8)
 
         Height = cfg.BEV_HEIGHT + 1
         Width = cfg.BEV_WIDTH + 1
@@ -353,7 +406,7 @@ def save_img(filename: str, cv_image):
     cv2.imwrite(filename, cv_image)
 
 
-def get_gt(label_path):
+def get_gt(label_path, convertToLidar=True):
     labels = []
     for line in open(label_path, 'r'):
         line = line.rstrip()
@@ -378,40 +431,27 @@ def get_gt(label_path):
         # yaw angle (around Y-axis in camera coordinates) [-pi..pi]
         ry = float(line_parts[14])
 
-        lidar_label = camera_to_lidar_point(np.array([x, y, z, h, w, l, ry]).reshape(7,-1))
-
         object_label = [cat_id, x, y, z, h, w, l, ry]
         labels.append(object_label)
 
-    # if len(labels) == 0:
-    #     labels = np.zeros((1, 8), dtype=np.float32)
-    #     has_labels = False
-    # else:
-    #     labels = np.array(labels, dtype=np.float32)
-
+    if convertToLidar:
+        labels = camera_to_lidar_box(labels, V2C=cfg.Tr_velo_to_cam_inv, hasClass=True)
     return labels
 
-
-
-
-
-
-
-
-
-
-
-
-# @ ToDo fix this function
-def camera_to_lidar_point(points):
-    # (N, 3) -> (N, 3)
-    N = points.shape[0]
-    points = np.hstack([points, np.ones((N, 1))]).T  # (N,4) -> (4,N)
-
-    points = np.matmul(cfg.R0_inv, points)
-    points = np.matmul(cfg.Tr_velo_to_cam_inv, points).T  # (4, N) -> (N, 4)
-    points = points[:, 0:3]
-    return points.reshape(-1, 3)
+def camera_to_lidar_box(boxes, V2C, hasClass=False):
+    # (N, 7) -> (N, 7) x,y,z,h,w,l,r
+    ret = []
+    for box in boxes:
+        if hasClass:
+            cls, x, y, z, h, w, l, ry = box
+        else:
+            x, y, z, h, w, l, ry = box
+        (x, y, z), h, w, l, rz = transform_pc(np.array([[x, y, z]]), V2C).tolist()[0], h, w, l, -ry #- np.pi / 2
+        if hasClass:
+            ret.append([cls, x, y, z, h, w, l, rz])
+        else:
+            ret.append([x, y, z, h, w, l, rz])
+    return ret
 
 def main(args):
     lidar_path = '/home/adrian/dev/kitti/data_object_velodyne/training/velodyne'
@@ -422,7 +462,8 @@ def main(args):
                           image_path=image_path, label_path=label_path)
 
     # UNCOMMENT For Demo
-    lbc.demo_pc_to_image(debug=False)
+    # lbc.demo_pc_to_image(debug=False)
+    # lbc.label_3d_on_image()
 
     lbc.create_yolo_obb_dataset(
         output_path=args.output, val_fraction=0.2, test_fraction=0.2, percent_background=0.0)

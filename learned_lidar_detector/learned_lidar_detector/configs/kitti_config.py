@@ -8,11 +8,11 @@ CLASS_NAME_TO_ID = {
     'Car': 1,
     'Cyclist': 2,
     'Van': 1,
-    'Truck': -3,
+    'Truck': 3,
     'Person_sitting': 0,
     'Tram': -99,
     'Misc': -99,
-    'DontCare': -1
+    'DontCare': -99
 }
 
 colours = [[0, 255, 255], [0, 0, 255], [255, 0, 0], [255, 120, 0],
@@ -61,5 +61,5 @@ P2 = np.array([[719.787081, 0., 608.463003, 44.9538775],
                ])
 
 R0_inv = np.linalg.inv(R0)
-Tr_velo_to_cam_inv = np.linalg.inv(Tr_velo_to_cam)
+Tr_velo_to_cam_inv = np.linalg.inv(Tr_velo_to_cam) @ R0_inv
 P2_inv = np.linalg.pinv(P2)
