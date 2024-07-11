@@ -43,6 +43,9 @@ def fast_bev(pc: np.ndarray, im_width: int, im_height: int, discretization: floa
             [min_x, min_y]) / np.array([X_RANGE, Y_RANGE])
     )
 
+    # Shift Z axis to start at the ground plane
+    PointCloud_top[:, 2] -= min_z
+
     sorted_indices = np.lexsort(
         (-pc[:, 2], pc[:, 1], pc[:, 0]))
     pc = pc[sorted_indices]
@@ -87,8 +90,8 @@ def array_to_image(array: np.ndarray) -> np.ndarray:
     Returns:
         np.ndarray: Image format
     """
-    image = (array*255).astype(np.uint8)
-    image = image.transpose((1, 2, 0))  # HWC to CHW
+    # Convert image structure from HWC to CHW
+    image = (array.transpose(1, 2, 0) * 255).astype(np.uint8)
     image = np.ascontiguousarray(image, dtype=np.uint8)
     return image
 

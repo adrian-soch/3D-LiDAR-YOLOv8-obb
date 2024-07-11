@@ -64,8 +64,6 @@ class LidarBevCreator():
         train_size = len(self.lidar_list) - val_size - test_size
         assert train_size > 0, "Invalid train/val/test split."
 
-        shuffle_list(self.lidar_list)
-
         folders = [('train', range(0, train_size)), ('val', range(
             train_size, val_size+train_size)), ('test', range(train_size+val_size, test_size+val_size+train_size))]
         for folder, split_range in folders:
@@ -97,6 +95,8 @@ class LidarBevCreator():
             self.get_bev_and_label(idx=idx, visualize=True, debug=debug)
 
     def label_3d_on_image(self):
+        """WIP
+        """
         for idx in range(len(self.lidar_list)):
             pc_path = self.lidar_list[idx]
 
@@ -154,8 +154,8 @@ class LidarBevCreator():
         gt_path = os.path.join(self.label_path, name + '.txt')
         det_list = get_gt(gt_path)
         det_list = self.__convert_labels(det_list)
-        # det_list = self.__crop_labels(
-        #     det_list, height=cfg.BEV_HEIGHT, width=cfg.BEV_WIDTH)
+        det_list = self.__crop_labels(
+            det_list, height=cfg.BEV_HEIGHT, width=cfg.BEV_WIDTH)
 
         # Convert to BEV
         bev_image = self.create_bev(pc, visualize=visualize, labels=det_list)
@@ -246,6 +246,7 @@ class LidarBevCreator():
         Convert Label data into the psuedo image pixel space
 
         object_label = [cat_id, x, y, z, h, w, l, ry]
+        output = [class, x1, y1, x2, y2, x3, y3, x4, y4]
         '''
         labels = []
         for bbox in bboxes:
@@ -290,9 +291,9 @@ class LidarBevCreator():
             pointCloud[:, 1] > cfg.boundary['maxY']))]
         pointCloud = pointCloud[np.logical_not((pointCloud[:, 2] <= cfg.boundary['minZ']) | (
             pointCloud[:, 2] > cfg.boundary['maxZ']))]
-
-        # Apply radius removal
-        # pointCloud = radius_outlier_removal(pointCloud, num_points=12, r=0.8)
+        
+        # Shift Pointcloud to align with minZ=0 metres
+        pointCloud[:, 2] -= cfg.boundary['minZ']
 
         Height = cfg.BEV_HEIGHT + 1
         Width = cfg.BEV_WIDTH + 1
@@ -321,7 +322,7 @@ class LidarBevCreator():
 
         # Height Map, Intensity Map & Density Map
         heightMap = np.zeros((Height, Width))
-        rangeMap = np.zeros((Height, Width))
+        intensityMap = np.zeros((Height, Width))
         densityMap = np.zeros((Height, Width))
 
         max_height = float(np.abs(cfg.boundary['maxZ'] - cfg.boundary['minZ']))
@@ -329,7 +330,7 @@ class LidarBevCreator():
             PointCloud_top[:, 1])] = PointCloud_top[:, 2] / max_height
 
         max_range = pointCloud[:, 3].max()
-        rangeMap[np.int_(PointCloud_top[:, 0]), np.int_(
+        intensityMap[np.int_(PointCloud_top[:, 0]), np.int_(
             PointCloud_top[:, 1])] = PointCloud_top[:, 3] / max_range
 
         normalizedCounts = np.minimum(
@@ -338,9 +339,9 @@ class LidarBevCreator():
             PointCloud_top[:, 1])] = normalizedCounts
 
         RGB_Map = np.zeros((3, Height - 1, Width - 1))
-        RGB_Map[2, :, :] = densityMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]
-        RGB_Map[1, :, :] = heightMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]
-        RGB_Map[0, :, :] = rangeMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]
+        RGB_Map[2, :, :] = densityMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]  # r_map
+        RGB_Map[1, :, :] = heightMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]  # g_map
+        RGB_Map[0, :, :] = intensityMap[:cfg.BEV_HEIGHT, :cfg.BEV_WIDTH]  # b_map
 
         t2 = time.clock_gettime(time.CLOCK_THREAD_CPUTIME_ID)
         print(f'Time (msec): {(t2-t1)*1000:.2f}')

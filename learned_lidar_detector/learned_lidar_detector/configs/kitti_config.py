@@ -1,7 +1,5 @@
 import numpy as np
 
-MIN_POINT_COUNT = 1
-
 # Car and Van merged, Pedestrian and Seated pedestrian merged
 CLASS_NAME_TO_ID = {
     'Pedestrian': 0,
