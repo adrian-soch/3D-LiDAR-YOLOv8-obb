@@ -1,0 +1,6 @@
+path: /content/gdrive/MyDrive/Colab_Notebooks/kitti/kitti_bev
+train: ../images/train
+val: ../images/val
+
+nc: 5
+names: ["Pedestrian", "Car", "Cyclist", "Truck", "DontCare"]
