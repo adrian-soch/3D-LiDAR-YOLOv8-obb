@@ -42,7 +42,7 @@ class LidarBevCreator():
         assert len(self.lidar_list) > 0, "No point cloud files found."
         print(f'Found {len(self.lidar_list)} data samples.')
 
-    def create_yolo_obb_dataset(self, output_path: str, test_fraction=0.2, val_fraction=0.2, percent_background=0.0):
+    def create_yolo_obb_dataset(self, output_path: str, test_fraction=0.2, val_fraction=0.2):
         """Create a data set with train, val, test folders. Format is in the YOLOv8-OBB format.
             The Train split proportion is automatically calculated from val and test.
 
@@ -50,14 +50,9 @@ class LidarBevCreator():
             output_path (str): Location to save the dataset.
             test_fraction (float, optional): Test set proportion. Defaults to 0.2.
             val_fraction (float, optional): Validation set proportion. Defaults to 0.2.
-            percent_background (float, optional): Controls the proportion of empty images in the final dataset. Defaults to 0.0.
         """
         assert output_path is not None, "Output folder must be not be None"
         start_time = time.time()
-
-        background_set = ['background.bin'] * \
-            int(percent_background*len(self.lidar_list))
-        self.lidar_list += background_set
 
         val_size, test_size = int(
             len(self.lidar_list)*val_fraction), int(len(self.lidar_list)*test_fraction)
@@ -73,15 +68,17 @@ class LidarBevCreator():
             os.makedirs(gt_path)
 
             for idx in split_range:
-                bev_image, det_list = self.get_bev_and_label(idx=idx)
-                det_list = self.__normalize_labels(det_list)
+                bev_image = self.get_bev(idx=idx)
+                det_list = self.get_label(idx=idx)
 
-                if det_list is None:
+                norm_det_list = self.__normalize_labels(det_list)
+
+                if norm_det_list is None:
                     print('   No lables for this frame.')
 
                 file_name = str(idx).zfill(7)
                 self.__write_label_file(
-                    det_list, name=os.path.join(gt_path, f'{file_name}.txt'))
+                    norm_det_list, name=os.path.join(gt_path, f'{file_name}.txt'))
                 save_img(os.path.join(
                     img_path, f'{file_name}.jpg'), array_to_image(bev_image))
 
@@ -90,12 +87,32 @@ class LidarBevCreator():
         end_time = time.time()
         print(f'Processing time: {end_time - start_time:.2f} seconds')
 
+    def create_test_bevs(self, test_data:str, output_path:str, visualize=False):
+        test_list = get_files(test_data, 'bin')
+        assert not os.path.exists(output_path), "Output folder exists already"
+        os.makedirs(output_path)
+
+        for path in test_list:
+            _, tail = os.path.split(path)
+            idx, _ = os.path.splitext(tail)
+
+            bev_image = self.get_bev(lidar_frame_path=path, idx=idx, visualize=visualize)
+            file_name = str(idx).zfill(6)
+
+            save_img(os.path.join(output_path, f'{file_name}.jpg'), array_to_image(bev_image))
+
+            print(f'Saving bev image {idx} to {output_path}')
+
     def demo_pc_to_image(self, debug=False):
         for idx in range(len(self.lidar_list)):
-            self.get_bev_and_label(idx=idx, visualize=True, debug=debug)
+            det_list = self.get_label(idx=idx)
+            self.get_bev(idx=idx, visualize=True, labels=det_list, debug=debug)
 
-    def label_3d_on_image(self):
-        """WIP
+    def label_3d_on_image(self, line_width=1):
+        """For each image, project 3D bounding boxes to the image
+
+        Args:
+            line_width (int, optional): Width of bounding box line. Defaults to 2.
         """
         for idx in range(len(self.lidar_list)):
             pc_path = self.lidar_list[idx]
@@ -104,61 +121,81 @@ class LidarBevCreator():
             _, tail = os.path.split(pc_path)
             name, _ = os.path.splitext(tail)
             gt_path = os.path.join(self.label_path, name + '.txt')
-            det_list = get_gt(gt_path, convertToLidar=False)
-            points = self.get_image_points(det_list)
+            det_list = get_gt(gt_path, convertToLidar=True)
+            detections = self.get_image_points(det_list)
 
             img_path = os.path.join(self.image_path, name + '.png')
+            img = cv2.imread(img_path)
 
-            # for obj in points:
-            #     colour = cfg.colours[int(obj[0])]
-            #     image = draw_r_bbox(obj[1:], image, colour)
+            for det in detections:
+                colour = cfg.colours[int(det['class'])]
+                corners = det['points'].astype(int)
 
-            #     corners_int = np.array(corners).astype(int)
+                # corners_int = np.array(corners).astype(int)
+                img = cv2.line(img, (corners[0]), (corners[1]), colour, line_width)
+                img = cv2.line(img, (corners[1]), (corners[2]), colour, line_width)
+                img = cv2.line(img, (corners[2]), (corners[3]), colour, line_width)
+                img = cv2.line(img, (corners[3]), (corners[0]), colour, line_width)
 
-            #     img = cv2.line(img, (corners_int[0], corners_int[1]),
-            #                 (corners_int[2], corners_int[3]), colour, 1)
-            #     img = cv2.line(img, (corners_int[2], corners_int[3]),
-            #                 (corners_int[4], corners_int[5]), colour, 1)
-            #     img = cv2.line(img, (corners_int[4], corners_int[5]),
-            #                 (corners_int[6], corners_int[7]), colour, 1)
-            #     img = cv2.line(img, (corners_int[6], corners_int[7]),
-            #                 (corners_int[0], corners_int[1]), colour, 1)
+                img = cv2.line(img, (corners[4]), (corners[5]), colour, line_width)
+                img = cv2.line(img, (corners[5]), (corners[6]), colour, line_width)
+                img = cv2.line(img, (corners[6]), (corners[7]), colour, line_width)
+                img = cv2.line(img, (corners[7]), (corners[4]), colour, line_width)
 
-            #     cv2.imshow('Numpy Array as Image', image)
-            #     if user_input_handler() < 0:
-            #         exit(0)
+                img = cv2.line(img, (corners[0]), (corners[4]), colour, line_width)
+                img = cv2.line(img, (corners[1]), (corners[5]), colour, line_width)
+                img = cv2.line(img, (corners[2]), (corners[6]), colour, line_width)
+                img = cv2.line(img, (corners[3]), (corners[7]), colour, line_width)
+
+                img = cv2.line(img, (corners[0]), (corners[7]), colour, line_width)
+                img = cv2.line(img, (corners[4]), (corners[3]), colour, line_width)
+
+            image = cv2.putText(image, f'{name}.png', org=(20, 20),fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                fontScale=0.6, color=(255,255,255), thickness=2)
+            cv2.imshow('Demo 3D detection on image.', img)
+            if user_input_handler() < 0:
+                exit(0)
 
 
     def get_image_points(self, bboxes):
         dets = []
         for bbox in bboxes:
-            cam_points = self.__bbox3d_to_corners(bbox[1:], is3D=True)
-            image_points = transform_pc(np.array(cam_points), cfg.P2).tolist()[0],
+            lidar_points = self.__bbox3d_to_corners(bbox[1:], is3D=True)
+            image_points = self.project_to_image(np.array([lidar_points]), cfg.P_velo_to_image)
+            if image_points.shape[0] != 8:
+                continue
             dets.append({'class': bbox[0], 'points':image_points})
         return dets
 
 
-    def get_bev_and_label(self, idx: int, lidar_frame_path=None, visualize=False, debug=False):
-        pc_path = lidar_frame_path
-        if lidar_frame_path is None:
-            pc_path = self.lidar_list[idx]
+    def get_label(self, idx:int, label_path=None):
 
-        if pc_path == 'background.bin':
-            return np.zeros((3, cfg.BEV_HEIGHT, cfg.BEV_WIDTH)), None
+        path = label_path
+        if label_path is None:
+            path = self.lidar_list[idx]
 
-        pc = self.get_pc(pc_path)
-
-        # Get detection bboxes in the ground plane
-        _, tail = os.path.split(pc_path)
+        # Create label name from LiDAR file name
+        _, tail = os.path.split(path)
         name, _ = os.path.splitext(tail)
         gt_path = os.path.join(self.label_path, name + '.txt')
+
+        # Get Ground truth results from label file
         det_list = get_gt(gt_path)
         det_list = self.__convert_labels(det_list)
         det_list = self.__crop_labels(
             det_list, height=cfg.BEV_HEIGHT, width=cfg.BEV_WIDTH)
 
+        return det_list
+
+    def get_bev(self, idx: int, lidar_frame_path=None, visualize=False, labels=None, debug=False):
+        pc_path = lidar_frame_path
+        if lidar_frame_path is None:
+            pc_path = self.lidar_list[idx]
+
+        pc = self.get_pc(pc_path)
+
         # Convert to BEV
-        bev_image = self.create_bev(pc, visualize=visualize, labels=det_list)
+        bev_image = self.create_bev(pc, visualize=visualize, labels=labels, idx=idx)
 
         if debug:
             pcd = o3d.geometry.PointCloud()
@@ -167,7 +204,24 @@ class LidarBevCreator():
                 size=10, origin=[0, 0, 0])
             o3d.visualization.draw_geometries([pcd, triad])
 
-        return bev_image, det_list
+        return bev_image
+
+    @staticmethod
+    def project_to_image(points : np.ndarray, proj_mat: np.ndarray) -> np.ndarray:
+        image_points = transform_pc(np.array(points), proj_mat)
+        image_points = image_points[:, :2]/image_points[:, 2:]
+
+        # Filter out-of-bounds points
+        image_width, image_height = 1242*1.25, 375*1.25  # KITTI image dimensions
+        valid_indices = np.logical_and.reduce((
+            image_points[:, 0] >= 0,
+            image_points[:, 0] < image_width,
+            image_points[:, 1] >= 0,
+            image_points[:, 1] < image_height
+        ))
+        image_points = image_points[valid_indices]
+
+        return image_points
 
     @staticmethod
     def __normalize_labels(labels):
@@ -211,7 +265,10 @@ class LidarBevCreator():
         '''
         x, y, z = bbox_bev[0], bbox_bev[1], bbox_bev[2]
         h, w, l = bbox_bev[3], bbox_bev[4], bbox_bev[5]
-        yaw = bbox_bev[6]
+        if is3D:
+            yaw = bbox_bev[6]-np.pi/2
+        else:
+            yaw = bbox_bev[6]
 
         sin_yaw = np.sin(yaw)
         cos_yaw = np.cos(yaw)
@@ -232,14 +289,14 @@ class LidarBevCreator():
         if not is3D:
             return [x1, y1, x2, y2, x3, y3, x4, y4]
         else:
-            return [[x1, y1, 0.0],
-                    [x2, y2, 0.0],
-                    [x3, y3, 0.0],
-                    [x4, y4, 0.0],
-                    [x1, y1, h],
-                    [x2, y2, h],
-                    [x3, y3, h],
-                    [x4, y4, h]]
+            return [[x1, y1, z/2 - h/2],
+                    [x2, y2, z/2 - h/2],
+                    [x3, y3, z/2 - h/2],
+                    [x4, y4, z/2 - h/2],
+                    [x1, y1, z/2 + h/2],
+                    [x2, y2, z/2 + h/2],
+                    [x3, y3, z/2 + h/2],
+                    [x4, y4, z/2 + h/2]]
 
     def __convert_labels(self, bboxes):
         '''
@@ -268,7 +325,7 @@ class LidarBevCreator():
     def get_pc(self, lidar_file):
         return np.fromfile(lidar_file, dtype=np.float32).reshape(-1, 4)
 
-    def create_bev(self, pointCloud: np.ndarray, visualize=False, labels=None) -> np.ndarray:
+    def create_bev(self, pointCloud: np.ndarray, visualize=False, labels=None, idx=None) -> np.ndarray:
         '''
         Based on: https://github.com/maudzung/SFA3D
 
@@ -291,7 +348,7 @@ class LidarBevCreator():
             pointCloud[:, 1] > cfg.boundary['maxY']))]
         pointCloud = pointCloud[np.logical_not((pointCloud[:, 2] <= cfg.boundary['minZ']) | (
             pointCloud[:, 2] > cfg.boundary['maxZ']))]
-        
+
         # Shift Pointcloud to align with minZ=0 metres
         pointCloud[:, 2] -= cfg.boundary['minZ']
 
@@ -351,8 +408,12 @@ class LidarBevCreator():
             if labels is not None:
                 image = annotate_bev(labels, image)
 
-            cv2.imshow('Numpy Array as Image', image)
+            idx = '' if idx is None else idx
+            image = cv2.putText(image, f'{idx}.png', org=(20, 20),fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                fontScale=0.6, color=(255,255,255), thickness=2)
+            cv2.imshow(f'BEV example', image)
             if user_input_handler() < 0:
+                cv2.destroyAllWindows()
                 exit(0)
 
         return RGB_Map
@@ -384,7 +445,7 @@ def draw_r_bbox(corners, img, colour):
     img = cv2.line(img, (corners_int[0], corners_int[1]),
                    (corners_int[2], corners_int[3]), colour, 1)
     img = cv2.line(img, (corners_int[2], corners_int[3]),
-                   (corners_int[4], corners_int[5]), colour, 1)
+                   (corners_int[4], corners_int[5]), [173, 5, 247], 1)
     img = cv2.line(img, (corners_int[4], corners_int[5]),
                    (corners_int[6], corners_int[7]), colour, 1)
     img = cv2.line(img, (corners_int[6], corners_int[7]),
@@ -397,8 +458,17 @@ def shuffle_list(list: list) -> None:
     random.shuffle(list)
 
 
-def get_files(path, ext: str) -> list:
-    assert os.path.isdir(path)
+def get_files(path:str, ext: str) -> list:
+    """Get a sorted list of files matching the extension in the provided folder.
+
+    Args:
+        path (str): Path of data
+        ext (str): Extension of data, Ex. 'txt'
+
+    Returns:
+        list: Sorted list of full filepaths to each item matching the extension
+    """
+    assert os.path.isdir(path), "Path is not a valid folder."
     files = glob(os.path.join(path, f'*.{ext}'))
     return sorted(files)
 
@@ -436,10 +506,10 @@ def get_gt(label_path, convertToLidar=True):
         labels.append(object_label)
 
     if convertToLidar:
-        labels = camera_to_lidar_box(labels, V2C=cfg.Tr_velo_to_cam_inv, hasClass=True)
+        labels = camera_to_lidar_box(labels, C2V_Mat=cfg.Tr_velo_to_cam_inv, hasClass=True)
     return labels
 
-def camera_to_lidar_box(boxes, V2C, hasClass=False):
+def camera_to_lidar_box(boxes, C2V_Mat, hasClass=False):
     # (N, 7) -> (N, 7) x,y,z,h,w,l,r
     ret = []
     for box in boxes:
@@ -447,7 +517,8 @@ def camera_to_lidar_box(boxes, V2C, hasClass=False):
             cls, x, y, z, h, w, l, ry = box
         else:
             x, y, z, h, w, l, ry = box
-        (x, y, z), h, w, l, rz = transform_pc(np.array([[x, y, z]]), V2C).tolist()[0], h, w, l, -ry #- np.pi / 2
+
+        (x, y, z), h, w, l, rz = transform_pc(np.array([[x, y, z]]), C2V_Mat).tolist()[0], h, w, l, -ry #- np.pi / 2
         if hasClass:
             ret.append([cls, x, y, z, h, w, l, rz])
         else:
@@ -466,8 +537,10 @@ def main(args):
     # lbc.demo_pc_to_image(debug=False)
     # lbc.label_3d_on_image()
 
-    lbc.create_yolo_obb_dataset(
-        output_path=args.output, val_fraction=0.2, test_fraction=0.2, percent_background=0.0)
+    # lbc.create_yolo_obb_dataset(
+        # output_path=args.output, val_fraction=0.78, test_fraction=0.2)
+
+    lbc.create_test_bevs(test_data='/home/adrian/dev/kitti/data_object_velodyne/testing/velodyne/', output_path='/home/adrian/dev/kitti/test_608')
 
 
 # check if the script is run directly and call the main function
