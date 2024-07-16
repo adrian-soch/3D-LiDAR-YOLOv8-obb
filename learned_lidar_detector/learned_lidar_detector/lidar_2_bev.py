@@ -33,8 +33,6 @@ def fast_bev(pc: np.ndarray, im_width: int, im_height: int, discretization: floa
                     pow(pc[:, 1], 2.0)).reshape(-1, 1)
     pc = np.hstack([pc, range])
 
-    # Apply radius removal
-    pc = radius_outlier_removal(pc, num_points=12, r=0.8)
 
     HEIGHT = im_height + 1
     WIDTH = im_width + 1
@@ -42,9 +40,6 @@ def fast_bev(pc: np.ndarray, im_width: int, im_height: int, discretization: floa
         np.floor(pc[:, :2] / discretization) - np.array([WIDTH, HEIGHT]) * np.array(
             [min_x, min_y]) / np.array([X_RANGE, Y_RANGE])
     )
-
-    # Shift Z axis to start at the ground plane
-    PointCloud_top[:, 2] -= min_z
 
     sorted_indices = np.lexsort(
         (-pc[:, 2], pc[:, 1], pc[:, 0]))
