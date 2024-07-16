@@ -10,7 +10,7 @@ CLASS_NAME_TO_ID = {
     'Person_sitting': 0,
     'Tram': -99,
     'Misc': -99,
-    'DontCare': -99
+    'DontCare': 4
 }
 
 colours = [[0, 255, 255], [0, 0, 255], [255, 0, 0], [255, 120, 0],
@@ -33,7 +33,7 @@ bound_size_y = boundary['maxY'] - boundary['minY']
 bound_size_z = boundary['maxZ'] - boundary['minZ']
 
 BEV_WIDTH = 608
-BEV_HEIGHT = 608
+BEV_HEIGHT = BEV_WIDTH
 
 DISCRETIZATION = max(bound_size_x, bound_size_y) / BEV_HEIGHT
 
@@ -61,3 +61,5 @@ P2 = np.array([[719.787081, 0., 608.463003, 44.9538775],
 R0_inv = np.linalg.inv(R0)
 Tr_velo_to_cam_inv = np.linalg.inv(Tr_velo_to_cam) @ R0_inv
 P2_inv = np.linalg.pinv(P2)
+P_velo_to_image = P2 @ Tr_velo_to_cam
+
