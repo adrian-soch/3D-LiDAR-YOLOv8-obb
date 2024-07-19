@@ -6,11 +6,11 @@ and YOLO-OBB training labels based on the config file
 # limit the number of cpus used by high performance libraries
 import argparse
 import os
-os.environ["OMP_NUM_THREADS"] = "1"
-os.environ["OPENBLAS_NUM_THREADS"] = "1"
-os.environ["MKL_NUM_THREADS"] = "1"
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
-os.environ["NUMEXPR_NUM_THREADS"] = "1"
+# os.environ["OMP_NUM_THREADS"] = "2"
+# os.environ["OPENBLAS_NUM_THREADS"] = "2"
+# os.environ["MKL_NUM_THREADS"] = "2"
+# os.environ["VECLIB_MAXIMUM_THREADS"] = "2"
+# os.environ["NUMEXPR_NUM_THREADS"] = "2"
 
 from lidar_2_bev import transform_pc, array_to_image
 from configs import kitti_config as cfg
@@ -76,7 +76,7 @@ class LidarBevCreator():
                 if norm_det_list is None:
                     print('   No lables for this frame.')
 
-                file_name = str(idx).zfill(7)
+                file_name = str(idx).zfill(6)
                 self.__write_label_file(
                     norm_det_list, name=os.path.join(gt_path, f'{file_name}.txt'))
                 save_img(os.path.join(
@@ -150,8 +150,8 @@ class LidarBevCreator():
                 img = cv2.line(img, (corners[0]), (corners[7]), colour, line_width)
                 img = cv2.line(img, (corners[4]), (corners[3]), colour, line_width)
 
-            image = cv2.putText(image, f'{name}.png', org=(20, 20),fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                                fontScale=0.6, color=(255,255,255), thickness=2)
+            img = cv2.putText(img, f'{name}.png', org=(20, 20),fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                                fontScale=0.6, color=(0,0,0), thickness=2)
             cv2.imshow('Demo 3D detection on image.', img)
             if user_input_handler() < 0:
                 exit(0)
@@ -161,7 +161,7 @@ class LidarBevCreator():
         dets = []
         for bbox in bboxes:
             lidar_points = self.__bbox3d_to_corners(bbox[1:], is3D=True)
-            image_points = self.project_to_image(np.array([lidar_points]), cfg.P_velo_to_image)
+            image_points = self.project_to_image(np.array(lidar_points), cfg.P_velo_to_image)
             if image_points.shape[0] != 8:
                 continue
             dets.append({'class': bbox[0], 'points':image_points})
@@ -182,6 +182,9 @@ class LidarBevCreator():
         # Get Ground truth results from label file
         det_list = get_gt(gt_path)
         det_list = self.__convert_labels(det_list)
+        
+        if len(det_list) <= 0:
+            return det_list
         det_list = self.__crop_labels(
             det_list, height=cfg.BEV_HEIGHT, width=cfg.BEV_WIDTH)
 
@@ -311,7 +314,7 @@ class LidarBevCreator():
             h, w, l, = bbox[4], bbox[5], bbox[6]
             yaw = -bbox[7]
             y1 = int((x - cfg.boundary['minX']) / cfg.DISCRETIZATION)
-            x1 = int((y - cfg.boundary['minY']) / cfg.DISCRETIZATION)
+            x1 = int((y - cfg.boundary['minY']) / cfg.DISCRETIZATION_y)
             z1 = z
             w1 = int(w / cfg.DISCRETIZATION)
             l1 = int(l / cfg.DISCRETIZATION)
@@ -348,6 +351,10 @@ class LidarBevCreator():
             pointCloud[:, 1] > cfg.boundary['maxY']))]
         pointCloud = pointCloud[np.logical_not((pointCloud[:, 2] <= cfg.boundary['minZ']) | (
             pointCloud[:, 2] > cfg.boundary['maxZ']))]
+        
+        # Crop the camera FoV, fov was arbitrarily decided
+        angle = np.abs(np.arctan2(pointCloud[:, 1],pointCloud[:, 0]))
+        pointCloud = pointCloud[angle < cfg.HORIZONTAL_FOV/2]
 
         # Shift Pointcloud to align with minZ=0 metres
         pointCloud[:, 2] -= cfg.boundary['minZ']
@@ -366,7 +373,7 @@ class LidarBevCreator():
         pointCloud[:, 0] = np.int_(
             np.floor(pointCloud[:, 0] / cfg.DISCRETIZATION) - Height*cfg.boundary['minX']/cfg.bound_size_x)
         pointCloud[:, 1] = np.int_(
-            np.floor(pointCloud[:, 1] / cfg.DISCRETIZATION) - Width*cfg.boundary['minY']/cfg.bound_size_y)
+            np.floor(pointCloud[:, 1] / cfg.DISCRETIZATION_y) - Width*cfg.boundary['minY']/cfg.bound_size_y)
 
         # sort-3times
         sorted_indices = np.lexsort(
@@ -529,6 +536,15 @@ def main(args):
     lidar_path = '/home/adrian/dev/kitti/data_object_velodyne/training/velodyne'
     image_path = '/home/adrian/dev/kitti/data_object_image_2/training/image_2'
     label_path = '/home/adrian/dev/kitti/data_object_label_2/training/label_2'
+    
+    # lidar_path = '/home/adrian/dev/kitti/data_object_velodyne/testing/velodyne'
+    # image_path = '/home/adrian/dev/kitti/data_object_image_2/testing/image_2'
+    # label_path = '/home/adrian/dev/kitti/bev_test_predictions/'
+    
+    # lidar_path = '/home/adrian/dev/kitti/data_object_velodyne/val_lidar'
+    # image_path = '/home/adrian/dev/kitti/data_object_image_2/testing/image_2'
+    # label_path = '/home/adrian/dev/kitti/bev_val_predictions/data/'
+
 
     lbc = LidarBevCreator(lidar_path=lidar_path,
                           image_path=image_path, label_path=label_path)
@@ -537,10 +553,10 @@ def main(args):
     # lbc.demo_pc_to_image(debug=False)
     # lbc.label_3d_on_image()
 
-    # lbc.create_yolo_obb_dataset(
-        # output_path=args.output, val_fraction=0.78, test_fraction=0.2)
+    lbc.create_yolo_obb_dataset(
+        output_path=args.output, val_fraction=0.2, test_fraction=0.0)
 
-    lbc.create_test_bevs(test_data='/home/adrian/dev/kitti/data_object_velodyne/testing/velodyne/', output_path='/home/adrian/dev/kitti/test_608')
+    # lbc.create_test_bevs(test_data='/home/adrian/dev/kitti/data_object_velodyne/testing/velodyne/', output_path='/home/adrian/dev/kitti/test_608')
 
 
 # check if the script is run directly and call the main function
@@ -548,6 +564,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Processes the LiDAR images into BEV psuedo images in the YOLO-obb format.")
     parser.add_argument(
-        "-o", "--output", help="The path where the results are saved.", default='/home/adrian/dev/kitti/kitti_bev/')
+        "-o", "--output", help="The path where the results are saved.", default='/home/adrian/dev/kitti/kitti_bev_last/')
     args = parser.parse_args()
     main(args)

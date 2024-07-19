@@ -20,10 +20,10 @@ colours = [[0, 255, 255], [0, 0, 255], [255, 0, 0], [255, 120, 0],
 Parameters for point cloud manipulation
 '''
 boundary = {
-    "minX": 0,
-    "maxX": 50,
-    "minY": -25,
-    "maxY": 25,
+    "minX": 6.3,
+    "maxX": 80,
+    "minY": -36,
+    "maxY": 36,
     "minZ": -2.73,
     "maxZ": 1.27
 }
@@ -32,10 +32,13 @@ bound_size_x = boundary['maxX'] - boundary['minX']
 bound_size_y = boundary['maxY'] - boundary['minY']
 bound_size_z = boundary['maxZ'] - boundary['minZ']
 
-BEV_WIDTH = 608
-BEV_HEIGHT = BEV_WIDTH
+BEV_WIDTH = 1024
+BEV_HEIGHT = 1024
 
-DISCRETIZATION = max(bound_size_x, bound_size_y) / BEV_HEIGHT
+DISCRETIZATION = bound_size_x / BEV_HEIGHT
+DISCRETIZATION_y = bound_size_y / BEV_WIDTH
+
+HORIZONTAL_FOV = 1.4
 
 Tr_velo_to_cam = np.array([
     [7.49916597e-03, -9.99971248e-01, -8.65110297e-04, -6.71807577e-03],
@@ -61,5 +64,5 @@ P2 = np.array([[719.787081, 0., 608.463003, 44.9538775],
 R0_inv = np.linalg.inv(R0)
 Tr_velo_to_cam_inv = np.linalg.inv(Tr_velo_to_cam) @ R0_inv
 P2_inv = np.linalg.pinv(P2)
-P_velo_to_image = P2 @ Tr_velo_to_cam
+P_velo_to_image = P2 @ R0 @ Tr_velo_to_cam
 
