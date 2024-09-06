@@ -34,7 +34,7 @@ class KittiEval():
             self.out_path), "Output folder exists already"
         os.makedirs(self.out_path)
 
-    def get_model_output(self, model_path: str, conf=0.2, device='cuda:0'):
+    def get_model_output(self, model_path: str, conf=0.2, device='cuda:0', iou=0.5):
         model = YOLO(model_path, task='obb')
 
         batch_size = 1
@@ -47,7 +47,7 @@ class KittiEval():
                 batch.append(path_list.pop(0))
 
             results = model(batch, device=device, imgsz=(
-                self.imgsz), conf=conf, verbose=True, half=False)
+                self.imgsz), conf=conf, iou=iou, verbose=True, half=False)
 
             import time
             time.sleep(0.02)
@@ -108,7 +108,7 @@ class KittiEval():
 
         bbox = [min_x, min_y, max_x, max_y]
 
-        ry = lidar_det[4]
+        ry = lidar_det[4]-np.pi
 
         if self.method == '2D':
             h, w, l = 0, 0, 0
@@ -182,21 +182,21 @@ class KittiEval():
         image_points = image_points[:, :2]/image_points[:, 2:]
 
         # Filter out-of-bounds points
-        # image_width, image_height = 1242*1.2, 375*1.2  # KITTI image dimensions
-        # valid_indices = np.logical_and.reduce((
-        #     image_points[:, 0] >= 0,
-        #     image_points[:, 0] < image_width,
-        #     image_points[:, 1] >= 0,
-        #     image_points[:, 1] < image_height
-        # ))
-        # image_points = image_points[valid_indices]
+        image_width, image_height = 1242*1.2, 375*1.2  # KITTI image dimensions
+        valid_indices = np.logical_and.reduce((
+            image_points[:, 0] >= 0,
+            image_points[:, 0] < image_width,
+            image_points[:, 1] >= 0,
+            image_points[:, 1] < image_height
+        ))
+        image_points = image_points[valid_indices]
 
         return image_points
 
     @staticmethod
     def height_from_class(cls: str) -> float:
-        CLASS_NAME_TO_HEIGHT = {'Cyclist': 1.6,
-                                'Truck': 3.2, 'Car': 1.7, 'Pedestrian': 1.9}
+        CLASS_NAME_TO_HEIGHT = {'Cyclist': 1.7,
+                                'Truck': 3.2, 'Car': 1.53, 'Pedestrian': 1.7}
         return CLASS_NAME_TO_HEIGHT[cls]
 
     def write_predicted_labels(self, file_path, data):
@@ -220,7 +220,7 @@ def main(args):
         bev_path=args.bev_path, method=args.method, out_path=args.output, imgsz=args.imgsz)
 
     kiti_eval_creator.get_model_output(
-        model_path='/home/adrian/dev/kitti/yolov8n-obb-p2.pt')
+        model_path='/home/adrian/Downloads/best.pt')
 
 
 # check if the script is run directly and call the main function
@@ -230,9 +230,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-m", "--method", help="The evaluation method ['2D', 'BEV', '3D'].", default='BEV', type=str)
     parser.add_argument(
-        "-l", "--bev_path", help="The lidar BEV psuedo image path.", default='/home/adrian/dev/kitti/kitti_bev_last/images/val/', type=str)
+        "-l", "--bev_path", help="The lidar BEV psuedo image path.", default='/home/adrian/dev/kitti/kitti_bev_last/images/val', type=str)
     parser.add_argument(
-        "-o", "--output", help="The path where the results are saved.", default='/home/adrian/dev/kitti/bev_p21024_val_predictions/data', type=str)
+        "-o", "--output", help="The path where the results are saved.", default='/home/adrian/dev/kitti/bev_1024_M-p22neg_val/data', type=str)
     parser.add_argument(
         "--imgsz", help="The image size.", default=1024, type=int)
     
