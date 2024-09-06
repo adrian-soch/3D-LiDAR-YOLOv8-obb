@@ -2,7 +2,7 @@
 This script converts the A9 data into BEV psuedo images
 based on the config file values
 '''
-
+# fmt: off
 # limit the number of cpus used by high performance libraries
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -25,6 +25,7 @@ import random
 
 from configs import a9_config as cfg
 from lidar_2_bev import radius_outlier_removal, transform_pc, array_to_image, euler_from_quaternion
+# fmt: on
 
 
 class A9LidarBevCreator():
@@ -245,7 +246,6 @@ class A9LidarBevCreator():
     def get_pc(self, lidar_file):
         pc = PointCloud.from_path(lidar_file)
         return pc.numpy()
-
 
     def create_bev(self, pointCloud: np.ndarray, visualize=False, labels=None) -> np.ndarray:
         '''

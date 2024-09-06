@@ -1,8 +1,9 @@
 from ultralytics import YOLO
 
-model = YOLO('yolov8n-obb.pt')  # load a pretrained model (recommended for training)
-# model = YOLO('yolov8n-obb.yaml')  # build a new model from YAML
-# model = YOLO('yolov8n-obb.yaml').load('yolov8n.pt')  # build from YAML and transfer weights
+model = YOLO('yolov8n-obb.pt')
 
 # Train the model
-results = model.train(data='./configs/a9_bev.yaml', epochs=30, imgsz=1024, close_mosaic=0, batch=4)
+results = model.train(data='kitti_bev.yaml', epochs=80, imgsz=808, close_mosaic=0, batch=0.7,
+                      patience=10, plots=True, cache=True, box=7.5, cls=0.5, dfl=0.7,
+                      single_cls=False, scale=0.0, hsv_s=0.01, hsv_v=0.01,
+                      degrees=0.05, crop_fraction=0.05, mosaic=0.0)
