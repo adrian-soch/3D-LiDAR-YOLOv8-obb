@@ -5,8 +5,7 @@
 ![Screenshot from 2024-09-06 16-07-45](https://github.com/user-attachments/assets/506fc6a1-67ca-419a-93e9-c630f48232ce)
 
 **Example BEV Psuedo Image from KITTI dataset**
-![000021](https://github.com/user-attachments/assets/070227a7-050e-42a5-b5c3-1303b675c0b4)
-
+![bev_gt](https://github.com/user-attachments/assets/f727a4eb-e9d3-459f-b51b-bdadb4c7c20e)
 
 ## TODO
 - [ ] Seperate the ros package from scripts for creating training data
