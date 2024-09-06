@@ -10,7 +10,7 @@ rviz_config_file = os.path.join(share_dir, 'rviz.rviz')
 
 CONFIG_NAME = 'r02_s03_cam1South_lidarSouth_config.yaml'
 data_dependant_params = os.path.join(
-    share_dir, 'configs', CONFIG_NAME)
+    share_dir, CONFIG_NAME)
 
 
 def generate_launch_description():
